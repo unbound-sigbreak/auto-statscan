@@ -7,4 +7,7 @@
   "Estimates of the components of demographic growth, annual": "https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid=1710000801&latestN=0&startDate=20000101&endDate=99990101&csvLocale=en&selectedMembers=%5B%5B1%5D%2C%5B%5D%5D&checkedLevels=1D1%2C1D2",
   "Employee wages by industry, monthly, unadjusted for seasonality (Average)": "https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid=1410006301&latestN=0&startDate=20000601&endDate=99991001&csvLocale=en&selectedMembers=%5B%5B1%5D%2C%5B2%5D%2C%5B1%5D%2C%5B1%2C2%2C3%2C4%2C5%2C6%2C7%2C8%2C9%2C10%2C11%2C12%2C13%2C14%2C15%2C16%2C17%2C18%2C19%5D%2C%5B1%5D%2C%5B1%5D%5D&checkedLevels=",
   "Employee wages by industry, monthly, unadjusted for seasonality (Median)": "https://www150.statcan.gc.ca/t1/tbl1/en/dtl!downloadDbLoadingData-nonTraduit.action?pid=1410006301&latestN=0&startDate=20000601&endDate=99991001&csvLocale=en&selectedMembers=%5B%5B1%5D%2C%5B4%5D%2C%5B1%5D%2C%5B1%2C2%2C3%2C4%2C5%2C6%2C7%2C8%2C9%2C10%2C11%2C12%2C13%2C14%2C15%2C16%2C17%2C18%2C19%5D%2C%5B1%5D%2C%5B1%5D%5D&checkedLevels=",
+  "Inflation rate": "https://www.bankofcanada.ca/valet/observations/group/CPI_MONTHLY/csv",
+  "Interest rates": "https://www.bankofcanada.ca/valet/observations/AVG.INTWO/CSV",
+  "Home prices": "./Not Seasonally Adjusted (M).csv", // You must manually download the zip and save the Excel file as a csv: https://www.crea.ca/housing-market-stats/mls-home-price-index/hpi-tool/
 }

@@ -3,3 +3,4 @@
 *.db-journal
 index.json
 node_modules
+workdir

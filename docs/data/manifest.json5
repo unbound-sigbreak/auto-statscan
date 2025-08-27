@@ -1,0 +1,418 @@
+{
+  "datasets": [
+    {
+      id: "m2",
+      label: "M2 Money Supply (millions)",
+      enabled: true,
+      unit: "absolute",
+      freq: "monthly",
+      color: "#f7b500",
+      width: 2,
+      radius: 0,
+      path: "m2.json5",
+      output: {
+        "id": "m2",
+        "label": "M2 Money Supply (millions)",
+        "unit": "absolute",
+        "freq": "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT REF_DATE, VALUE, SCALAR_FACTOR\
+          FROM \"{$table}\"\
+          WHERE GEO = {$q_geo}\
+            AND UOM = {$q_uom}\
+            AND Assets__liabilities_and_monetary_aggregates LIKE {$q_like}\
+          ORDER BY REF_DATE ASC\
+        ",
+        params: {
+          table: "Chartered_bank_assets_and_liabilities_and_monetary_aggregates__month_end__seasonally_adjusted__Bank_of_Canada",
+          geo: "Canada",
+          uom: "Dollars",
+          like: "M2 (gross)%"
+        },
+        scale_to: "millions"
+      }
+    },
+    {
+      id: "home_prices",
+      label: "Average Home Price (Composite Benchmark)",
+      unit: "absolute",
+      freq: "monthly",
+      path: "home_prices.json5",
+      output: {
+        id: "home_prices",
+        label: "Average Home Price (Composite Benchmark)",
+        unit: "absolute",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT \
+            substr(Date, instr(Date, ' ')+1) || '-' || \
+            CASE substr(Date, 1, 3) \
+              WHEN 'Jan' THEN '01' \
+              WHEN 'Feb' THEN '02' \
+              WHEN 'Mar' THEN '03' \
+              WHEN 'Apr' THEN '04' \
+              WHEN 'May' THEN '05' \
+              WHEN 'Jun' THEN '06' \
+              WHEN 'Jul' THEN '07' \
+              WHEN 'Aug' THEN '08' \
+              WHEN 'Sep' THEN '09' \
+              WHEN 'Oct' THEN '10' \
+              WHEN 'Nov' THEN '11' \
+              WHEN 'Dec' THEN '12' \
+            END AS REF_DATE, \
+            CAST(\"Composite_Benchmark\" AS REAL) AS VALUE \
+          FROM \"Home_prices\" \
+          WHERE \"Composite_Benchmark\" IS NOT NULL AND \"Composite_Benchmark\" <> '' \
+          ORDER BY REF_DATE ASC\
+        ",
+        scale_to: "units"
+      }
+    },
+    {
+      id: "pop_quarterly",
+      label: "Population Estimates (quarterly)",
+      axis: "yRight",
+      path: "population_quarterly.json5",
+      unit: "absolute",
+      freq: "quarterly",
+      color: "#4cc3ff",
+      width: 2,
+      radius: 0,
+      output: {
+        id: "pop_quarterly",
+        label: "Population Estimates (quarterly)",
+        unit: "absolute",
+        freq: "quarterly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "SELECT REF_DATE, VALUE, SCALAR_FACTOR FROM \"Population_estimates__quarterly\" WHERE GEO = {$q_geo} AND UOM = {$q_uom} ORDER BY REF_DATE ASC",
+        params: {
+          table: "Population_estimates__quarterly",
+          geo: "Canada",
+          uom: "Persons"
+        },
+        scale_to: "units"
+      }
+    },
+    {
+      id: "deaths",
+      label: "Total Deaths by Year",
+      enabled: false,
+      path: "deaths.json5",
+      unit: "absolute",
+      freq: "yearly",
+      color: "#22bbdd",
+      width: 2,
+      radius: 0,
+      output: {
+        "id": "deaths",
+        "label": "Total Deaths by Year",
+        unit: "absolute",
+        freq: "yearly",
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "SELECT REF_DATE, VALUE, SCALAR_FACTOR FROM \"Deaths__by_month\" WHERE GEO = {$q_geo} AND Month_of_death = {$q_month} AND Characteristics = {$q_char} AND UOM = {$q_uom} ORDER BY REF_DATE ASC",
+        params: {
+          table: "Deaths__by_month",
+          geo: "Canada, place of residence",
+          month: "Total, month of death",
+          char: "Number of deaths",
+          uom: "Number"
+        },
+        scale_to: "units"
+      }
+    },
+    {
+      id: "births",
+      label: "Total Live Births by Year",
+      enabled: false,
+      path: "births.json5",
+      unit: "absolute",
+      freq: "yearly",
+      color: "#44dd77",
+      width: 2,
+      radius: 0,
+      output: {
+        id: "births",
+        label: "Total Live Births by Year",
+        unit: "absolute",
+        freq: "yearly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "SELECT REF_DATE, VALUE, SCALAR_FACTOR FROM \"Live_births__by_month\" WHERE GEO = {$q_geo} AND Month_of_birth = {$q_month} AND Characteristics = {$q_char} AND UOM = {$q_uom} ORDER BY REF_DATE ASC",
+        params: {
+          table: "Live_births__by_month",
+          geo: "Canada, place of residence of mother",
+          month: "Total, month of birth",
+          char: "Number of live births",
+          uom: "Number"
+        },
+        scale_to: "units"
+      }
+    },
+    {
+      id: "immigrants",
+      label: "Immigrants (annual)",
+      path: "immigrants.json5",
+      unit: "absolute",
+      freq: "yearly",
+      color: "#ff4444",
+      width: 2,
+      radius: 0,
+      output: {
+        id: "immigrants",
+        label: "Immigrants (annual)",
+        unit: "absolute",
+        freq: "yearly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "SELECT (CAST(substr(REF_DATE, 6, 4) AS INT)) || '-07' AS REF_DATE, SUM(VALUE) AS VALUE, MAX(SCALAR_FACTOR) AS SCALAR_FACTOR FROM \"Estimates_of_the_components_of_demographic_growth__annual\" WHERE GEO = {$q_geo} AND Components_of_population_growth IN ('Immigrants','Net non-permanent residents') AND UOM = {$q_uom} GROUP BY REF_DATE ORDER BY REF_DATE ASC",
+        params: {
+          table: "Estimates_of_the_components_of_demographic_growth__annual",
+          geo: "Canada",
+          comp: "Immigrants",
+          uom: "Persons"
+        },
+        scale_to: "units"
+      }
+    },
+    {
+      id: "wage_median",
+      label: "Median Hourly Wage",
+      unit: "absolute",
+      freq: "monthly",
+      color: "#4da6ff",
+      width: 2,
+      radius: 0,
+      path: "wage_median.json5",
+      output: {
+        id: "wage_median",
+        label: "Median Hourly Wage",
+        unit: "absolute",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT REF_DATE, VALUE, SCALAR_FACTOR \
+          FROM \"Employee_wages_by_industry__monthly__unadjusted_for_seasonality__Median_\" \
+          WHERE GEO = {$q_geo} \
+            AND Wages = {$q_wages} \
+            AND Type_of_work = {$q_type} \
+            AND North_American_Industry_Classification_System__NAICS_ = {$q_industry} \
+            AND Sex = {$q_sex} \
+            AND Age_group = {$q_age} \
+            AND UOM = {$q_uom} \
+          ORDER BY REF_DATE ASC\
+        ",
+        params: {
+          geo: "Canada",
+          wages: "Median hourly wage rate",
+          type: "Both full- and part-time employees",
+          industry: "Total employees, all industries",
+          sex: "Total - Gender",
+          age: "15 years and over",
+          uom: "Current dollars"
+        },
+        scale_to: "units"
+      }
+    },
+    {
+      id: "wage_avg",
+      label: "Average Hourly Wage",
+      enabled: false,
+      unit: "absolute",
+      freq: "monthly",
+      color: "#00cc99",
+      width: 2,
+      radius: 0,
+      path: "wage_avg.json5",
+      output: {
+        id: "wage_avg",
+        label: "Average Hourly Wage",
+        unit: "absolute",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT REF_DATE, VALUE, SCALAR_FACTOR \
+          FROM \"Employee_wages_by_industry__monthly__unadjusted_for_seasonality__Average_\" \
+          WHERE GEO = {$q_geo} \
+            AND Wages = {$q_wages} \
+            AND Type_of_work = {$q_type} \
+            AND North_American_Industry_Classification_System__NAICS_ = {$q_industry} \
+            AND Sex = {$q_sex} \
+            AND Age_group = {$q_age} \
+            AND UOM = {$q_uom} \
+          ORDER BY REF_DATE ASC\
+        ",
+        params: {
+          geo: "Canada",
+          wages: "Average hourly wage rate",
+          type: "Both full- and part-time employees",
+          industry: "Total employees, all industries",
+          sex: "Total - Gender",
+          age: "15 years and over",
+          uom: "Current dollars"
+        },
+        scale_to: "units"
+      }
+    },
+    {
+      id: "inflation_median",
+      label: "Inflation - Median CPI",
+      enabled: false,
+      unit: "percent",
+      freq: "monthly",
+      color: "#54c2ff",
+      width: 2,
+      radius: 0,
+      path: "inflation_median.json5",
+      output: {
+        id: "inflation_median",
+        label: "Inflation - Median CPI",
+        unit: "percent",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT strftime('%Y-%m', date) AS REF_DATE, CAST(CPI_MEDIAN AS REAL) AS VALUE \
+          FROM Inflation_rate \
+          WHERE CPI_MEDIAN IS NOT NULL AND CPI_MEDIAN <> '' \
+          ORDER BY REF_DATE ASC\
+        ",
+        scale_to: "units"
+      }
+    },
+    {
+      id: "inflation_trim",
+      label: "Inflation - Trim CPI",
+      enabled: false,
+      unit: "percent",
+      freq: "monthly",
+      color: "#7dd36f",
+      width: 2,
+      radius: 0,
+      path: "inflation_trim.json5",
+      output: {
+        id: "inflation_trim",
+        label: "Inflation - Trim CPI",
+        unit: "percent",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT strftime('%Y-%m', date) AS REF_DATE, CAST(CPI_TRIM AS REAL) AS VALUE \
+          FROM Inflation_rate \
+          WHERE CPI_TRIM IS NOT NULL AND CPI_TRIM <> '' \
+          ORDER BY REF_DATE ASC\
+        ",
+        scale_to: "units"
+      }
+    },
+    {
+      id: "inflation_common",
+      label: "Inflation - Common CPI",
+      enabled: false,
+      unit: "percent",
+      freq: "monthly",
+      color: "#b397ff",
+      width: 2,
+      radius: 0,
+      path: "inflation_common.json5",
+      output: {
+        id: "inflation_common",
+        label: "Inflation - Common CPI",
+        unit: "percent",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT strftime('%Y-%m', date) AS REF_DATE, CAST(CPI_COMMON AS REAL) AS VALUE \
+          FROM Inflation_rate \
+          WHERE CPI_COMMON IS NOT NULL AND CPI_COMMON <> '' \
+          ORDER BY REF_DATE ASC\
+        ",
+        scale_to: "units"
+      }
+    },
+    {
+      id: "interest_rate_eom",
+      label: "Interest Rate (end of month)",
+      enabled: false,
+      unit: "percent",
+      freq: "monthly",
+      color: "#ff9a66",
+      width: 2,
+      radius: 0,
+      path: "interest_rate_eom.json5",
+      output: {
+        id: "interest_rate_eom",
+        label: "Interest Rate (end of month)",
+        unit: "percent",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          WITH daily AS ( \
+            SELECT date(date) AS d, CAST(AVG_INTWO AS REAL) AS r \
+            FROM Interest_rates \
+            WHERE AVG_INTWO IS NOT NULL AND AVG_INTWO <> '' \
+          ), ranked AS ( \
+            SELECT d, r, strftime('%Y-%m', d) AS ym, \
+                   ROW_NUMBER() OVER (PARTITION BY strftime('%Y-%m', d) ORDER BY d DESC) AS rn \
+            FROM daily \
+          ) \
+          SELECT ym AS REF_DATE, r AS VALUE \
+          FROM ranked \
+          WHERE rn = 1 \
+          ORDER BY REF_DATE ASC\
+        ",
+        scale_to: "units"
+      }
+    },
+    {
+      id: "interest_rate_avg",
+      label: "Interest Rate (monthly average)",
+      unit: "percent",
+      freq: "monthly",
+      color: "#ffa833",
+      width: 2,
+      radius: 0,
+      path: "interest_rate_avg.json5",
+      output: {
+        id: "interest_rate_avg",
+        label: "Interest Rate (monthly average)",
+        unit: "percent",
+        freq: "monthly"
+      },
+      source: {
+        db: "./autostatscan.db",
+        query: "\
+          SELECT strftime('%Y-%m', date(date)) AS REF_DATE, \
+                 AVG(CAST(AVG_INTWO AS REAL)) AS VALUE \
+          FROM Interest_rates \
+          WHERE AVG_INTWO IS NOT NULL AND AVG_INTWO <> '' \
+          GROUP BY 1 \
+          ORDER BY 1\
+        ",
+        scale_to: "units"
+      }
+    }
+  ]
+}

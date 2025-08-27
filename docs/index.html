@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Canadian Economic & Population Dashboard</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+<script src="https://unpkg.com/json5@2/dist/index.min.js"></script>
+<style>
+  :root { --bg:#0b0d10; --fg:#e8eef6; --muted:#9fb0c0; --panel:#12151a; --accent:#67b0ff; }
+  html,body { height:100%; margin:0; font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--fg); }
+  *, *::before, *::after { box-sizing: border-box; }
+  .app { display:grid; grid-template-columns: 360px 1fr; gap:0; height:100dvh; }
+  .left { background:var(--panel); border-right:1px solid #1e232c; overflow:auto; }
+  .right { display:flex; flex-direction:column; }
+  header { padding:14px 16px; border-bottom:1px solid #1e232c; display:flex; align-items:center; gap:10px; }
+  header h1 { font-size:16px; margin:0; font-weight:600; color:#dbe7f5; }
+  .controls { padding:14px 16px; display:grid; gap:14px; }
+  .group { background:#0f1217; border:1px solid #1b212a; border-radius:12px; overflow:hidden; }
+  .group summary { list-style:none; cursor:pointer; padding:12px 12px; border-bottom:1px solid #1b212a; display:flex; align-items:center; gap:8px; }
+  .group summary::-webkit-details-marker { display:none; }
+  .group[open] summary { background:#0e1319; }
+  .group h2 { margin:0; font-size:13px; font-weight:700; color:#c9d6e6; letter-spacing:.02em; }
+  .group .content { padding:12px; }
+  label { font-size:12px; color:var(--muted); display:block; margin-bottom:6px; }
+  input[type="number"], input[type="text"], select, input[type="color"] {
+    width:100%; max-width:100%;
+    background:#0c0f13; color:var(--fg);
+    border:1px solid #222a35; border-radius:8px;
+    padding:8px 10px; font-size:12px;
+  }
+  input[type="checkbox"] { transform: translateY(1px); }
+  input[type="number"] { padding-right: 0.9rem; }
+  .row { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap:10px; }
+  .disabled-ds { opacity:.55; text-decoration: line-through; }
+  .disabled-ds input, .disabled-ds select { pointer-events:none; }
+  .dataset { display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center; padding:8px; }
+  .dataset:hover { background:#0d1117; }
+  .dataset + .dataset { border-top:1px dashed #253043; }
+  .muted { color:var(--muted); font-size:12px; }
+  .small { font-size:11px; color:#8ea3b8; }
+  .pill { border:1px solid #283143; border-radius:999px; padding:2px 8px; font-size:11px; color:#a9bad1; }
+  .flex { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .grow { flex:1; }
+  .error { color:#ff6b6b; font-size:12px; }
+  .btn { background:#151a22; color:#cfe1ff; border:1px solid #263147; padding:8px 10px; border-radius:10px; font-size:12px; cursor:pointer; }
+  .btn:hover { background:#19202a; }
+  .ok { border-color:#1f2f27; color:#b9ffd1; }
+  .vstack { display:grid; grid-template-columns: 1fr; gap:10px; }
+  .chart-wrap { flex:1; min-height:0; position:relative; }
+  #chart { width:100%; height:100%; display:block; }
+  footer { padding:10px 14px; border-top:1px solid #1e232c; color:#9ab0c8; font-size:12px; }
+  .axis-subgrid { display:none; margin-top:8px; gap:10px; }
+  .axis-subgrid.active { display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .caret { inline-size:0; block-size:0; border:6px solid transparent; border-left-color:#8fb7ff; transform:rotate(0deg); transition: transform .15s ease; }
+  details[open] .caret { transform:rotate(90deg); }
+  input[type="color"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    border: 1px solid #444;
+    border-radius: 6px;
+    width: 100%;
+    height: 32px;
+    padding: 0;
+    cursor: pointer;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+    border-radius: 6px;
+  }
+  input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 6px;
+  }
+  input[type="color"]::-moz-color-swatch {
+    border: none;
+    border-radius: 6px;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="left">
+    <header>
+      <h1>Canadian Economic & Population Dashboard</h1>
+      <span class="pill" id="sourceLabel">BASE_URL: https://unbound-sigbreak.github.io/auto-statscan/data/</span>
+    </header>
+
+    <div class="controls">
+
+      <details class="group">
+        <summary><span class="caret"></span><h2>Data Source</h2></summary>
+        <div class="content">
+          <label for="baseUrl">Base URL (ends with /data/)</label>
+          <input id="baseUrl" type="text" value="https://unbound-sigbreak.github.io/auto-statscan/data/">
+          <div class="flex" style="margin-top:8px;">
+            <button class="btn ok" id="reload">Reload Manifest</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="group" open>
+        <summary><span class="caret"></span><h2>Axes & Scale</h2></summary>
+        <div class="content">
+
+          <div class="row">
+            <div>
+              <label for="unitMode">Mode</label>
+              <select id="unitMode">
+                <option value="absolute">Absolute only</option>
+                <option value="percent">Percent only</option>
+                <option value="mixed" selected>Mixed (dual Y)</option>
+              </select>
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <label><input id="spanGaps" type="checkbox" checked> Span gaps (connect across nulls)</label>
+            </div>
+          </div>
+
+          <div id="axisConfigs" class="axis-subgrid" style="margin-top:8px;">
+            <div>
+              <label for="leftUnit">Left axis unit</label>
+              <select id="leftUnit">
+                <option value="absolute">Absolute</option>
+                <option value="percent">Percent</option>
+              </select>
+            </div>
+            <div>
+              <label for="rightUnit">Right axis unit</label>
+              <select id="rightUnit">
+                <option value="absolute">Absolute</option>
+                <option value="percent">Percent</option>
+              </select>
+            </div>
+            <div>
+              <label for="scaleLeft">Left axis scale</label>
+              <select id="scaleLeft">
+                <option value="linear">Linear</option>
+                <option value="logarithmic">Logarithmic</option>
+              </select>
+            </div>
+            <div>
+              <label for="scaleRight">Right axis scale</label>
+              <select id="scaleRight">
+                <option value="linear">Linear</option>
+                <option value="logarithmic">Logarithmic</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="singleScaleRow" class="row" style="margin-top:8px;">
+            <div>
+              <label for="scaleSingle">Y Scale</label>
+              <select id="scaleSingle">
+                <option value="linear">Linear</option>
+                <option value="logarithmic">Logarithmic</option>
+              </select>
+            </div>
+            <div>
+              <label for="dummy">&nbsp;</label>
+              <div class="muted">In Mixed mode, set scales per axis above.</div>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top:12px;">
+            <div class="group" style="border:none;background:#0c1016;">
+              <div class="content" style="padding:10px">
+                <div class="vstack">
+                  <div>
+                    <label for="yMinLeft">Left Y min (auto if blank)</label>
+                    <input id="yMinLeft" type="number" step="any" placeholder="">
+                  </div>
+                  <div>
+                    <label for="yMaxLeft">Left Y max (auto if blank)</label>
+                    <input id="yMaxLeft" type="number" step="any" placeholder="">
+                  </div>
+                </div>
+                <div class="flex" style="margin-top:8px;">
+                  <button class="btn" id="applyBoundsLeft">Apply Left</button>
+                  <button class="btn" id="resetBoundsLeft">Reset Left</button>
+                </div>
+              </div>
+            </div>
+            <div class="group" style="border:none;background:#0c1016;">
+              <div class="content" style="padding:10px">
+                <div class="vstack">
+                  <div>
+                    <label for="yMinRight">Right Y min (auto if blank)</label>
+                    <input id="yMinRight" type="number" step="any" placeholder="">
+                  </div>
+                  <div>
+                    <label for="yMaxRight">Right Y max (auto if blank)</label>
+                    <input id="yMaxRight" type="number" step="any" placeholder="">
+                  </div>
+                </div>
+                <div class="flex" style="margin-top:8px;">
+                  <button class="btn" id="applyBoundsRight">Apply Right</button>
+                  <button class="btn" id="resetBoundsRight">Reset Right</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </details>
+
+      <details class="group" open>
+        <summary><span class="caret"></span><h2>Dataset Styles</h2></summary>
+        <div class="content">
+          <div id="datasets"></div>
+          <div class="muted" style="margin-top:6px;" id="dsHint">
+            Only datasets matching the current mode/axis units are shown.
+          </div>
+        </div>
+      </details>
+
+      <details class="group">
+        <summary><span class="caret"></span><h2>Legend / UX</h2></summary>
+        <div class="content">
+          <label><input id="showLegend" type="checkbox" checked> Show legend</label>
+          <label><input id="showPoints" type="checkbox"> Show points</label>
+        </div>
+      </details>
+
+      <details class="group">
+        <summary><span class="caret"></span><h2>Save / Load Style</h2></summary>
+        <div class="content">
+          <div class="flex">
+            <button class="btn" id="exportConfig">Export style JSON</button>
+            <input id="importConfig" type="file" accept="application/json">
+          </div>
+        </div>
+      </details>
+
+      <details class="group">
+        <summary><span class="caret"></span><h2>About</h2></summary>
+        <div class="content">
+          <div class="small">
+            Data comes from your JSON5 files (see schema below). Update from StatsCan/Open Canada by replacing JSON5.
+          </div>
+        </div>
+      </details>
+
+    </div>
+  </div>
+
+  <div class="right">
+    <div class="chart-wrap">
+      <canvas id="chart"></canvas>
+    </div>
+    <footer>
+      Dual-Y supported. In Mixed mode you can pick axis units (Absolute/Percent) and scale (Linear/Log) per side.
+    </footer>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const chartEl = $('chart');
+let BASE_URL = $('baseUrl').value.trim();
+const manifestPath = () => new URL('manifest.json5', BASE_URL).toString();
+const LS_KEY = 'canada-dashboard-config-v2';
+
+const ctx = chartEl.getContext('2d');
+let chart = new Chart(ctx, {
+  type: 'line',
+  data: { labels: [], datasets: [] },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    parsing: false,
+    animation: false,
+    spanGaps: true,
+    interaction: { mode: 'nearest', intersect: false },
+    scales: {
+      x: { display: true, title: { display: true, text: 'Date' } },
+      yLeft:  { type: 'linear', position: 'left',  beginAtZero: false, title: { display: true, text: 'Absolute' } },
+      yRight: { type: 'linear', position: 'right', beginAtZero: false, grid: { drawOnChartArea: false }, title: { display: true, text: 'Percent (%)' } }
+    },
+    plugins: {
+      legend: {
+        display: true,
+        labels: {
+          generateLabels: (chartInstance) => {
+            const baseItems = Chart.defaults.plugins.legend.labels.generateLabels(chartInstance);
+            return baseItems.map((item) => {
+              const dataset = chartInstance.data.datasets[item.datasetIndex];
+              if (dataset?.meta?.incompatible) {
+                item.text += ' (disabled: incompatible axis)';
+                item.strokeStyle = '#546177';
+                item.fillStyle = '#546177';
+              }
+              if (dataset?.meta?.failed) {
+                item.text += ' (failed to load)';
+                item.strokeStyle = '#6b3a3a';
+                item.fillStyle = '#6b3a3a';
+              }
+              return item;
+            });
+          }
+        }
+      },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => {
+            const dataset = ctx.dataset;
+            const val = ctx.parsed.y;
+            const unitType = dataset.meta?.unit || '';
+            return `${dataset.label}: ${val}${unitType === 'percent' ? '%' : ''}`;
+          }
+        }
+      }
+    }
+  }
+});
+
+let manifest = null;
+let datasetsMeta = [];
+let loadedSeries = {};
+let datasetLoadErrors = new Map();
+let unitMode = 'mixed';
+let leftUnit = 'absolute';
+let rightUnit = 'absolute';
+
+const setBaseUrl = (urlString) => {
+  try { BASE_URL = new URL(urlString).toString(); }
+  catch { BASE_URL = urlString; }
+  $('sourceLabel').textContent = 'BASE_URL: ' + BASE_URL;
+};
+
+const normalizeLabel = (labelValue) => {
+  if (typeof labelValue === 'number') labelValue = String(labelValue);
+  if (typeof labelValue !== 'string') return labelValue;
+  const str = labelValue.trim();
+  if (/^\d{4}$/.test(str)) return `${str}-01`;
+  const yearRangeMatch = str.match(/^(\d{4})\/(\d{4})$/);
+  if (yearRangeMatch) return `${yearRangeMatch[1]}-07`;
+  const quarterMatch = str.match(/^(\d{4})-Q([1-4])$/i);
+  if (quarterMatch) {
+    const yearNumber = Number(quarterMatch[1]);
+    const quarterMap = { '1':'01','2':'04','3':'07','4':'10' };
+    return `${yearNumber}-${quarterMap[quarterMatch[2]]}`;
+  }
+  if (/^\d{4}-\d{2}$/.test(str)) return str;
+  return str;
+};
+
+const datasetIsCompatible = (meta) => {
+  if (unitMode === 'absolute') return meta.unit === 'absolute';
+  if (unitMode === 'percent') return meta.unit === 'percent';
+  return (leftUnit === meta.unit) || (rightUnit === meta.unit);
+};
+
+const shiftLabelMonths = (yearMonth, delta) => {
+  const normalized = normalizeLabel(yearMonth);
+  const matchParts = normalized.match(/^(\d{4})-(\d{2})$/);
+  if (!matchParts) return normalized;
+  let year = Number(matchParts[1]);
+  let month = Number(matchParts[2]);
+  let index = (year * 12 + (month - 1)) + delta;
+  const newYear = Math.floor(index / 12);
+  const newMonthZeroBased = (index % 12 + 12) % 12;
+  return `${newYear}-${String(newMonthZeroBased + 1).padStart(2,'0')}`;
+};
+
+const makeLineDataset = (meta, seriesAligned, styleOverrides = {}, axisId = 'yLeft') => {
+  const color = styleOverrides.color || meta.color || '#67b0ff';
+  const width = Number(styleOverrides.width ?? meta.width ?? 2);
+  const radius = Number(styleOverrides.radius ?? meta.radius ?? 0);
+  const isEnabled = (styleOverrides.enabled !== undefined) ? !!styleOverrides.enabled : (meta.enabled !== false);
+  const isSparse = meta.freq === 'yearly' || meta.freq === 'quarterly';
+  const spanAcrossGaps = document.getElementById('spanGaps').checked || isSparse;
+  return {
+    label: meta.label,
+    data: spanAcrossGaps
+      ? seriesAligned.data.map((yValue, index) => (yValue == null ? null : ({ x: seriesAligned.labels[index], y: yValue }))).filter((point) => Boolean(point))
+      : seriesAligned.data.map((yValue, index) => ({ x: seriesAligned.labels[index], y: yValue })),
+    borderColor: color,
+    borderWidth: width,
+    pointRadius: $('showPoints').checked ? radius : 0,
+    pointHoverRadius: Math.max(radius, 2),
+    tension: 0.3,
+    spanGaps: $('spanGaps').checked,
+    hidden: !isEnabled,
+    yAxisID: axisId,
+    meta: { id: meta.id, unit: meta.unit }
+  };
+};
+
+const effectiveAxisFor = (meta) => {
+  if (unitMode === 'absolute') return 'yLeft';
+  if (unitMode === 'percent') return 'yRight';
+  const rowElement = document.querySelector(`.dataset[data-id="${meta.id}"]`);
+  const chosenAxis = rowElement?.querySelector('select[data-k="axis"]')?.value || meta.axis;
+  const leftMatches = (leftUnit === meta.unit);
+  const rightMatches = (rightUnit === meta.unit);
+  if (chosenAxis === 'yLeft' && leftMatches) return 'yLeft';
+  if (chosenAxis === 'yRight' && rightMatches) return 'yRight';
+  if (leftMatches) return 'yLeft';
+  if (rightMatches) return 'yRight';
+  return null;
+};
+
+const buildUnifiedLabels = (metas) => {
+  const labelSet = new Set();
+  for (const meta of metas) {
+    const series = loadedSeries[meta.id];
+    if (!series) continue;
+    for (const labelValue of series.labels) labelSet.add(normalizeLabel(labelValue));
+  }
+  return Array.from(labelSet).sort();
+};
+
+const alignSeries = (series, unifiedLabels, offsetMonths = 0) => {
+  const valueByLabel = new Map();
+  const normalizedLabels = series.labels.map((labelValue) => normalizeLabel(labelValue));
+  for (let i = 0; i < normalizedLabels.length; i++) {
+    const key = normalizedLabels[i];
+    if (!valueByLabel.has(key)) valueByLabel.set(key, series.data[i]);
+  }
+  const alignedData = unifiedLabels.map((key) => {
+    const sourceKey = offsetMonths ? shiftLabelMonths(key, -offsetMonths) : key;
+    return valueByLabel.has(sourceKey) ? valueByLabel.get(sourceKey) : null;
+  });
+  return { labels: unifiedLabels, data: alignedData };
+};
+
+const rebuildChart = () => {
+  if (unitMode === 'mixed') {
+    $('axisConfigs').classList.add('active');
+    $('singleScaleRow').style.display = 'none';
+    chart.options.scales.yLeft.title.text = (leftUnit === 'percent') ? 'Percent (%)' : 'Absolute';
+    chart.options.scales.yRight.title.text = (rightUnit === 'percent') ? 'Percent (%)' : 'Absolute';
+    chart.options.scales.yLeft.type = $('scaleLeft').value;
+    chart.options.scales.yRight.type = $('scaleRight').value;
+  } else {
+    $('axisConfigs').classList.remove('active');
+    $('singleScaleRow').style.display = '';
+    const singleType = $('scaleSingle').value;
+    chart.options.scales.yLeft.type = singleType;
+    chart.options.scales.yRight.type = singleType;
+    const titleText = (unitMode === 'percent') ? 'Percent (%)' : 'Absolute';
+    chart.options.scales.yLeft.title.text = titleText;
+    chart.options.scales.yRight.title.text = titleText;
+  }
+  chart.options.plugins.legend.display = $('showLegend').checked;
+  let visibleMetas = [];
+  if (unitMode === 'absolute') {
+    visibleMetas = datasetsMeta.filter((meta) => meta.unit === 'absolute');
+  } else if (unitMode === 'percent') {
+    visibleMetas = datasetsMeta.filter((meta) => meta.unit === 'percent');
+  } else {
+    visibleMetas = datasetsMeta.filter((meta) => {
+      if (leftUnit === 'percent' && rightUnit === 'percent' && meta.unit === 'absolute') return false;
+      if (leftUnit === 'absolute' && rightUnit === 'absolute' && meta.unit === 'percent') return false;
+      return true;
+    });
+  }
+  const visibleLoaded = visibleMetas.filter((meta) => loadedSeries[meta.id]);
+  const unifiedLabels = buildUnifiedLabels(visibleLoaded);
+  chart.data.labels = unifiedLabels;
+  const datasets = [];
+  for (const meta of visibleLoaded) {
+    const style = getStyleFor(meta.id);
+    const axis = effectiveAxisFor(meta);
+    if (datasetLoadErrors.has(meta.id)) {
+      sets.push({
+        label: meta.label,
+        data: [],
+        hidden: true,
+        yAxisID: 'yLeft',
+        meta: { id: meta.id, unit: meta.unit, failed: true }
+      });
+      continue;
+    }
+    
+    if (!datasetIsCompatible(meta) || !axis) {
+      datasets.push({
+        label: meta.label,
+        data: [],
+        hidden: true,
+        yAxisID: 'yLeft',
+        meta: { id: meta.id, unit: meta.unit, incompatible: true }
+      });
+      continue;
+    }
+    const offset = Number.isFinite(+style.offset) ? +style.offset : 0;
+    const aligned = alignSeries(loadedSeries[meta.id], unifiedLabels, offset);
+    datasets.push(makeLineDataset(meta, aligned, style, axis));
+  }
+  chart.data.datasets = datasets;
+  chart.update('none');
+};
+
+const applyBoundsSide = (side) => {
+  const minEl = side === 'yLeft' ? $('yMinLeft') : $('yMinRight');
+  const maxEl = side === 'yLeft' ? $('yMaxLeft') : $('yMaxRight');
+  const yMin = minEl.value === '' ? undefined : Number(minEl.value);
+  const yMax = maxEl.value === '' ? undefined : Number(maxEl.value);
+  const axisScale = chart.options.scales[side];
+  axisScale.suggestedMin = undefined;
+  axisScale.suggestedMax = undefined;
+  axisScale.min = (yMin !== undefined && !Number.isNaN(yMin)) ? yMin : undefined;
+  axisScale.max = (yMax !== undefined && !Number.isNaN(yMax)) ? yMax : undefined;
+  chart.update('none');
+};
+
+const resetBoundsSide = (side) => {
+  if (side === 'yLeft') { $('yMinLeft').value = ''; $('yMaxLeft').value = ''; }
+  else { $('yMinRight').value = ''; $('yMaxRight').value = ''; }
+  chart.options.scales[side].min = undefined;
+  chart.options.scales[side].max = undefined;
+  chart.update('none');
+};
+
+const saveConfigToLS = () => {
+  const style = {};
+  datasetsMeta.forEach((meta) => { style[meta.id] = getStyleFor(meta.id); });
+  const payload = {
+    baseUrl: BASE_URL,
+    unitMode,
+    leftUnit,
+    rightUnit,
+    scaleLeft: $('scaleLeft').value,
+    scaleRight: $('scaleRight').value,
+    scaleSingle: $('scaleSingle').value,
+    yMinLeft: $('yMinLeft').value,
+    yMaxLeft: $('yMaxLeft').value,
+    yMinRight: $('yMinRight').value,
+    yMaxRight: $('yMaxRight').value,
+    showLegend: $('showLegend').checked,
+    spanGaps: $('spanGaps').checked,
+    showPoints: $('showPoints').checked,
+    styles: style
+  };
+  localStorage.setItem(LS_KEY, JSON.stringify(payload));
+};
+
+const loadConfigFromLS = () => {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return;
+    const cfg = JSON.parse(raw);
+    $('baseUrl').value = cfg.baseUrl ?? $('baseUrl').value;
+    setBaseUrl($('baseUrl').value);
+    unitMode = cfg.unitMode ?? unitMode;
+    $('unitMode').value = unitMode;
+    leftUnit = cfg.leftUnit ?? leftUnit;
+    rightUnit = cfg.rightUnit ?? rightUnit;
+    $('leftUnit').value = leftUnit;
+    $('rightUnit').value = rightUnit;
+    $('scaleLeft').value = cfg.scaleLeft ?? 'linear';
+    $('scaleRight').value = cfg.scaleRight ?? 'linear';
+    $('scaleSingle').value = cfg.scaleSingle ?? 'linear';
+    $('yMinLeft').value = cfg.yMinLeft ?? '';
+    $('yMaxLeft').value = cfg.yMaxLeft ?? '';
+    $('yMinRight').value = cfg.yMinRight ?? '';
+    $('yMaxRight').value = cfg.yMaxRight ?? '';
+    $('showLegend').checked = cfg.showLegend ?? true;
+    $('spanGaps').checked = cfg.spanGaps ?? true;
+    $('showPoints').checked = cfg.showPoints ?? false;
+    if (cfg.styles) Object.entries(cfg.styles).forEach(([id, style]) => setStyleFor(id, style));
+  } catch {}
+};
+
+const exportConfig = () => {
+  const blob = new Blob([localStorage.getItem(LS_KEY) ?? '{}'], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'chart-style-config.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+};
+
+const getStyleFor = (id) => {
+  const row = document.querySelector(`.dataset[data-id="${id}"]`);
+  if (!row) return {};
+  return {
+    color: row.querySelector('input[type="color"]')?.value,
+    width: Number(row.querySelector('input[data-k="width"]')?.value || 2),
+    radius: Number(row.querySelector('input[data-k="radius"]')?.value || 0),
+    enabled: row.querySelector('input[type="checkbox"]')?.checked,
+    axis: row.querySelector('select[data-k="axis"]')?.value,
+    offset: Number(row.querySelector('input[data-k="offset"]')?.value || 0)
+  };
+};
+
+const setStyleFor = (id, style) => {
+  const row = document.querySelector(`.dataset[data-id="${id}"]`);
+  if (!row || !style) return;
+  if (style.color) row.querySelector('input[type="color"]').value = style.color;
+  if (style.width != null) row.querySelector('input[data-k="width"]').value = style.width;
+  if (style.radius != null) row.querySelector('input[data-k="radius"]').value = style.radius;
+  if (style.enabled != null) row.querySelector('input[type="checkbox"]').checked = !!style.enabled;
+  if (row.querySelector('select[data-k="axis"]') && style.axis) row.querySelector('select[data-k="axis"]').value = style.axis;
+  if (row.querySelector('input[data-k="offset"]') && style.offset != null) row.querySelector('input[data-k="offset"]').value = style.offset;
+};
+
+const buildDatasetControls = () => {
+  const container = $('datasets');
+  container.innerHTML = '';
+  const showAbsolute = (unitMode === 'absolute') || (unitMode === 'mixed' && (leftUnit === 'absolute' || rightUnit === 'absolute'));
+  const showPercent = (unitMode === 'percent') || (unitMode === 'mixed' && (leftUnit === 'percent' || rightUnit === 'percent'));
+
+  datasetsMeta.forEach((meta) => {
+    const hasError = datasetLoadErrors.has(meta.id);
+    const row = document.createElement('div');
+    row.className = 'dataset';
+    row.dataset.id = meta.id;
+
+    const axisSelector = (unitMode === 'mixed') ? `
+      <div class="row" style="grid-column:1 / -1; margin-top:6px;">
+        <div>
+          <label>Axis</label>
+          <select data-k="axis">
+            ${leftUnit === meta.unit ? '<option value="yLeft">Left</option>' : ''}
+            ${rightUnit === meta.unit ? '<option value="yRight">Right</option>' : ''}
+          </select>
+        </div>
+        <div></div>
+      </div>` : ``;
+
+    const errorNote = hasError ? `<div class="error" style="grid-column:1 / -1; margin-top:6px;">Failed to load</div>` : ``;
+
+    row.innerHTML = `
+      <label class="flex">
+        <input type="checkbox" ${meta.enabled !== false ? 'checked' : ''}>
+        <span class="grow">${meta.label}</span>
+        <span class="pill">${meta.unit === 'percent' ? '%' : 'abs'}</span>
+      </label>
+      <div class="row" style="grid-column:1 / -1;">
+        <div><label>Color</label><input type="color" value="${meta.color || '#67b0ff'}"></div>
+        <div><label>Line width</label><input type="number" data-k="width" min="1" max="8" step="1" value="${meta.width ?? 2}"></div>
+      </div>
+      <div class="row" style="grid-column:1 / -1; margin-top:6px;">
+        <div><label>Point radius</label><input type="number" data-k="radius" min="0" max="8" step="1" value="${meta.radius ?? 0}"></div>
+        <div><label>Offset (months)</label><input type="number" data-k="offset" step="1" value="0" title="Negative: shift left (earlier). Positive: shift right (later)."></div>
+      </div>
+      ${axisSelector}
+      ${errorNote}
+    `;
+
+    const incompatible = !datasetIsCompatible(meta);
+    const checkbox = row.querySelector('input[type="checkbox"]');
+    const axisSelect = row.querySelector('select[data-k="axis"]');
+    const shouldShow = (meta.unit === 'absolute') ? showAbsolute : showPercent;
+
+    if (axisSelect) {
+      [...axisSelect.options].forEach((option) => {
+        if ((option.value === 'yLeft' && leftUnit !== meta.unit) || (option.value === 'yRight' && rightUnit !== meta.unit)) option.remove();
+      });
+      if (!axisSelect.options.length) {
+        axisSelect.disabled = true;
+        axisSelect.title = 'No compatible axis (change Left/Right units above)';
+      } else if (meta.axis && [...axisSelect.options].some((option) => option.value === meta.axis)) {
+        axisSelect.value = meta.axis;
+      } else {
+        axisSelect.value = axisSelect.options[0].value;
+      }
+    }
+
+    if (incompatible) {
+      row.classList.add('disabled-ds');
+      row.title = `Cannot enable: dataset unit "${meta.unit}" doesn't match current axis units.`;
+    }
+    if (hasError) {
+      row.classList.add('disabled-ds');
+      row.title = datasetLoadErrors.get(meta.id) || 'Failed to load';
+    }
+
+    checkbox.checked = !hasError && (meta.enabled !== false) && !incompatible && shouldShow;
+    if (incompatible || !shouldShow || hasError) checkbox.disabled = true;
+
+    row.querySelectorAll('input,select').forEach((inputEl) => {
+      inputEl.addEventListener('input', () => { saveConfigToLS(); rebuildChart(); });
+      inputEl.addEventListener('change', () => { saveConfigToLS(); rebuildChart(); });
+    });
+
+    container.appendChild(row);
+  });
+
+  $('dsHint').textContent =
+    (unitMode === 'mixed')
+      ? 'All datasets are shown. Incompatible ones are greyed out until axis units match.'
+      : 'All datasets are shown. Datasets not matching the current unit mode are greyed out.';
+};
+
+const loadManifest = async () => {
+  datasetLoadErrors.clear();
+  try {
+    const res = await fetch(manifestPath(), { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    manifest = JSON5.parse(await res.text());
+    datasetsMeta = manifest.datasets || [];
+  } catch (error) {
+    console.warn('manifest load failed:', error);
+    manifest = { datasets: [] };
+    datasetsMeta = [];
+  }
+  buildDatasetControls();
+};
+
+const loadDataset = async (meta) => {
+  const url = new URL(meta.path, BASE_URL).toString();
+  const res = await fetch(url, { cache: 'no-cache' });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
+  let parsed = null;
+  try {
+    parsed = JSON5.parse(await res.text());
+  } catch (error) {
+    throw new Error(`Bad JSON in ${url}`);
+  }
+  loadedSeries[meta.id] = {
+    labels: (parsed.labels || []).map((value) => (typeof value === 'number' ? String(value) : String(value))),
+    data: (parsed.data || []).map((value) => ((value === null || value === undefined) ? null : Number(value)))
+  };
+};
+
+const needLoad = (meta) => {
+  if (unitMode === 'absolute') return meta.unit === 'absolute';
+  if (unitMode === 'percent') return meta.unit === 'percent';
+  if (leftUnit === 'percent' && rightUnit === 'percent') return meta.unit === 'percent';
+  if (leftUnit === 'absolute' && rightUnit === 'absolute') return meta.unit === 'absolute';
+  return true;
+};
+
+const loadAll = async () => {
+  const toLoad = datasetsMeta
+    .filter((meta) => needLoad(meta))
+    .filter((meta) => !loadedSeries[meta.id]);
+  const results = await Promise.allSettled(toLoad.map((meta) => loadDataset(meta)));
+  results.forEach((result, index) => {
+    const meta = toLoad[index];
+    if (result.status === 'rejected') {
+      datasetLoadErrors.set(meta.id, result.reason?.message || 'Failed to load');
+    } else {
+      datasetLoadErrors.delete(meta.id);
+    }
+  });
+};
+
+const onModeOrAxisChange = () => {
+  unitMode = $('unitMode').value;
+  leftUnit = $('leftUnit').value;
+  rightUnit = $('rightUnit').value;
+  buildDatasetControls();
+  loadAll().then(() => {
+    buildDatasetControls();
+    rebuildChart();
+    saveConfigToLS();
+  });
+};
+
+$('reload').addEventListener('click', async () => {
+  setBaseUrl($('baseUrl').value.trim());
+  await loadManifest();
+  await loadAll();
+  buildDatasetControls();
+  rebuildChart();
+  saveConfigToLS();
+});
+
+$('unitMode').addEventListener('change', () => {
+  if ($('unitMode').value === 'mixed') $('axisConfigs').classList.add('active');
+  else $('axisConfigs').classList.remove('active');
+  onModeOrAxisChange();
+});
+$('leftUnit').addEventListener('change', onModeOrAxisChange);
+$('rightUnit').addEventListener('change', onModeOrAxisChange);
+$('scaleLeft').addEventListener('change', () => { rebuildChart(); saveConfigToLS(); });
+$('scaleRight').addEventListener('change', () => { rebuildChart(); saveConfigToLS(); });
+$('scaleSingle').addEventListener('change', () => { rebuildChart(); saveConfigToLS(); });
+
+$('applyBoundsLeft').addEventListener('click', () => { applyBoundsSide('yLeft'); saveConfigToLS(); });
+$('resetBoundsLeft').addEventListener('click', () => { resetBoundsSide('yLeft'); saveConfigToLS(); });
+$('applyBoundsRight').addEventListener('click', () => { applyBoundsSide('yRight'); saveConfigToLS(); });
+$('resetBoundsRight').addEventListener('click', () => { resetBoundsSide('yRight'); saveConfigToLS(); });
+
+$('showLegend').addEventListener('change', () => { rebuildChart(); saveConfigToLS(); });
+$('spanGaps').addEventListener('change', () => { rebuildChart(); saveConfigToLS(); });
+$('showPoints').addEventListener('change', () => { rebuildChart(); saveConfigToLS(); });
+
+$('exportConfig').addEventListener('click', exportConfig);
+$('importConfig').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0]; if (!file) return;
+  const txt = await file.text();
+  localStorage.setItem(LS_KEY, txt);
+  loadConfigFromLS();
+  await loadManifest();
+  await loadAll();
+  buildDatasetControls();
+  rebuildChart();
+});
+
+window.addEventListener('beforeunload', saveConfigToLS);
+
+(async () => {
+  loadConfigFromLS();
+  if (unitMode === 'mixed') $('axisConfigs').classList.add('active'); else $('axisConfigs').classList.remove('active');
+  $('singleScaleRow').style.display = (unitMode === 'mixed') ? 'none' : '';
+  setBaseUrl($('baseUrl').value.trim());
+  try {
+    await loadManifest();
+    await loadAll();
+    buildDatasetControls();
+    rebuildChart();
+    if ($('yMinLeft').value !== '' || $('yMaxLeft').value !== '') applyBoundsSide('yLeft');
+    if ($('yMinRight').value !== '' || $('yMaxRight').value !== '') applyBoundsSide('yRight');
+  } catch (err) {
+    console.error(err);
+  }
+})();
+</script>
+</body>
+</html>

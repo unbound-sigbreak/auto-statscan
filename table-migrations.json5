@@ -1,0 +1,4 @@
+// Use this to automigrate table columns for when StatsCan updates them. IE, they changed the column 'Gender' to 'Sex'
+{
+  Gender: 'Sex'
+}
